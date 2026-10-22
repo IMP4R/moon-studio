@@ -7,7 +7,22 @@ function sync(r){if(!r.video.src&&r.visible){r.video.src=r.video.dataset.src;r.v
 function update(){index=slides.reduce((n,s,i)=>Math.abs(offset(i)-track.scrollLeft)<Math.abs(offset(n)-track.scrollLeft)?i:n,0);records.forEach(sync)}
 function move(i,instant=false){track.scrollTo({left:offset(Math.max(0,Math.min(slides.length-1,i))),behavior:instant||reduced.matches?'instant':'smooth'})}
 track.addEventListener('scroll',update,{passive:true});track.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();move(index+(e.key==='ArrowRight'?1:-1),true)}});
-track.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button!==0)return;drag={id:e.pointerId,x:e.clientX,left:track.scrollLeft,moved:false};suppress=false});
+let wheelSum=0,wheelTime=0,wheelUntil=0,wheelTarget=0;
+ track.addEventListener('wheel',e=>{
+   if(e.ctrlKey||drag)return;
+   // Native horizontal trackpad scrolling remains untouched.
+   if(Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
+   const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?track.clientWidth:1);if(!delta)return;
+   const now=performance.now(),direction=Math.sign(delta),max=track.scrollWidth-track.clientWidth;
+   if(now>=wheelUntil&&((direction<0&&track.scrollLeft<=2)||(direction>0&&track.scrollLeft>=max-2)))return;
+   e.preventDefault();
+   if(now<wheelUntil){wheelTime=now;return;}
+   if(now-wheelTime>180||Math.sign(wheelSum)!==direction)wheelSum=0;
+   wheelTime=now;wheelSum+=delta;
+   if(Math.abs(wheelSum)<35)return;
+   update();wheelTarget=Math.max(0,Math.min(slides.length-1,index+direction));move(wheelTarget);wheelSum=0;wheelUntil=now+450;
+ },{passive:false});
+ track.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button!==0)return;drag={id:e.pointerId,x:e.clientX,left:track.scrollLeft,moved:false};suppress=false});
 track.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x;if(!drag.moved&&Math.abs(dx)>5){drag.moved=true;track.setPointerCapture(e.pointerId);track.classList.add('is-dragging')}if(drag.moved){e.preventDefault();track.scrollLeft=drag.left-dx}});
 function release(){if(!drag)return;const moved=drag.moved;drag=null;track.classList.remove('is-dragging');if(moved){suppress=true;update();move(index);setTimeout(()=>suppress=false,0)}}
 track.addEventListener('pointerup',release);track.addEventListener('pointercancel',()=>{drag=null;track.classList.remove('is-dragging')});track.addEventListener('click',e=>{if(suppress){e.preventDefault();e.stopPropagation()}},true);track.addEventListener('dragstart',e=>e.preventDefault());
